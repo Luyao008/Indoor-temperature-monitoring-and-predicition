@@ -1,0 +1,11 @@
+<html>
+  <head>
+  <title>Temperature and Humidity</title>
+   </head>
+   <body>
+              <h1>Temperature and Humidity Monitoring</h1>
+             <p>Humidity is 25%    Temperature is 23.4℃</p>
+             <p>Humidity is 24%    Temperature is 23℃</p>
+             <p>Humidity is 30%    Temperature is 26℃</p>
+    </body>
+</html>

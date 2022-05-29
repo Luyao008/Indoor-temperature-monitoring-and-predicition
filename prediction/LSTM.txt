@@ -1,0 +1,121 @@
+clear all;
+close all;
+clc;
+rng default;
+
+%% 数据调入，用途区分：
+temp_10s=xlsxread('data2.xlsx','自动采集数据','c:c');
+data = temp_10s';
+
+figure(1)
+plot(data(1,:),'k')
+grid on;
+ylabel("Temperature")
+title("Observed")
+legend(["Actual"])
+
+
+%标准化数据。具有零均值和单位方差。
+mu = mean(data,2);  
+sig = std(data,0,2);
+dataStandardized = (data - mu) ./ sig;
+
+%前 90% 用于训练，后 10% 用于测试。
+numTimeStepsTrain = floor(0.9*size(data,2));
+
+dataTrainStandardized = dataStandardized(:,1:numTimeStepsTrain+1);
+dataTestStandardized = dataStandardized(:,numTimeStepsTrain+1:end);
+
+%准备预测变量和响应。请将响应指定为将值移位了一个时间步的训练序列。
+XTrain = dataTrainStandardized(:,1:end-1); 
+YTrain = dataTrainStandardized(1,2:end);
+
+%% 定义 LSTM 网络架构
+%创建 LSTM 回归网络的各层节点数
+numFeatures = 1;
+numResponses = 1;
+numHiddenUnits = 128;  
+
+%各个层结构
+layers = [ ...
+    sequenceInputLayer(numFeatures)
+    lstmLayer(numHiddenUnits) 
+    fullyConnectedLayer(numResponses)
+    regressionLayer];
+
+%指定训练选项。
+options = trainingOptions('adam', ...
+    'MaxEpochs',100, ...   
+    'GradientThreshold',1, ...
+    'InitialLearnRate',0.005, ...  
+    'LearnRateSchedule','piecewise', ...
+    'LearnRateDropPeriod',60, ...    
+    'LearnRateDropFactor',0.2, ...
+    'Verbose',0, ...
+    'Plots','training-progress');
+
+%% 训练 LSTM 网络
+tic;
+[net,tr]  = trainNetwork(XTrain,YTrain,layers,options);
+HanshuTime = toc;
+
+figure(2); 
+plot(tr.TrainingLoss,'Color',[1 0.5 0] ); 
+ylabel('Training Loss') 
+xlabel('Training Step'); 
+title(['Training Loss' ]);
+
+%均方根误差变化图像
+figure(3); 
+plot(tr.TrainingRMSE); 
+ylabel('Training RMSE') 
+xlabel('Training Step'); 
+title(['Training RMSE' ]);
+
+%% 使用观测值更新网络状态
+XTest = dataTestStandardized(:,1:end-1);
+YTest = dataTestStandardized(1,2:end);
+
+net = predictAndUpdateState(net,XTrain);  
+
+YPred = [];
+numTimeStepsTest = size(XTest,2);
+for i = 1:numTimeStepsTest
+    [net,YPred(:,i)] = predictAndUpdateState(net,XTest(:,i),'ExecutionEnvironment','cpu'); 
+end
+
+YPred = sig(1,1).*YPred + mu(1,1);
+YTest = sig(1,1).*YTest + mu(1,1);
+
+figure(4)
+plot(data(1,1:end-1),'k')
+hold on
+idx = numTimeStepsTrain+1:(numTimeStepsTrain+numTimeStepsTest);
+plot(idx,YPred,'.-b')
+hold off
+legend(["Actual" "Prediction"])
+ylabel("Temperature")
+title("Prediction")
+%% 误差分析
+%计算均方根误差 (RMSE)和相关系数R。
+rmse = sqrt(mean((YPred-YTest).^2))
+R=corrcoef(YPred,YTest)
+mae = mean(abs(YTest - YPred))
+mape = mean(abs((YTest - YPred)./YTest))
+
+figure(5)  
+plot(YTest,'k')
+hold on
+plot(YPred,'.-b')
+hold off
+legend(["Actual" "Prediction"])
+ylabel("Temperature")
+title("Prediction")
+
+figure(6)
+hold on 
+hold off
+stem(YPred - YTest,'.') 
+xlabel("Time")
+ylabel("Error")
+title("RMSE = " + rmse)

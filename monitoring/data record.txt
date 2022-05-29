@@ -1,0 +1,23 @@
+import requests
+import json
+import datetime
+from time import sleep
+
+def main():
+    count = 0
+    while(True):
+        sleep(10)
+        text_file = open("record.txt", "a")
+        url = requests.request("GET","http://192.168.1.177/")
+        text = url.text
+        data = json.loads(text)
+        humidity = data['humidity']
+        temperature = data['temperature']
+        curr_time = datetime.datetime.now()
+        time_str = datetime.datetime.strftime(curr_time,'%Y-%m-%d %H:%M:%S')
+        text_file.write(time_str+"\t"+str(humidity)+"\t"+str(temperature) +"\n")
+        count += 30 
+        text_file.close()
+    
+if __name__ == "__main__":
+    main()

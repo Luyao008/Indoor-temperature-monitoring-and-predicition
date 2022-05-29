@@ -1,0 +1,248 @@
+#include <SPI.h>
+#include <Ethernet.h>
+#include <EthernetClient.h>
+#include <EthernetServer.h>
+#include <DHT.h>
+#define DHTPIN 2
+#define DHTTYPE DHT11  
+
+
+DHT dht(DHTPIN, DHTTYPE);
+
+byte mac[] = { 
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+
+
+IPAddress ip(192,168,1,177);
+EthernetServer server(80);
+
+void setup() {
+ 
+  Serial.begin(9600);
+
+
+  Ethernet.begin(mac, ip);
+
+  // Check for Ethernet hardware present
+  if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+    Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+    while (true) {
+      delay(1); // do nothing, no point running without Ethernet hardware
+    }
+  }
+  if (Ethernet.linkStatus() == LinkOFF) {
+    Serial.println("Ethernet cable is not connected.");
+  }
+
+  server.begin();
+  Serial.print("server is at ");
+  Serial.println(Ethernet.localIP());
+
+  dht.begin();
+  Serial.print("sensor is ready");
+}
+
+
+
+float humidList[7] =  { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+float temperatureList[7] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }; 
+int spendTime[7] = { 0, 0, 0, 0, 0, 0, 0 }; 
+
+
+void loop() {
+ 
+  delay(5000);
+  
+  EthernetClient client = server.available();
+  if (client) {
+    
+    boolean currentLineIsBlank = true;
+   
+    
+    while (client.connected()) {
+     
+      if (client.available()) {
+        char c = client.read();
+        // if you've gotten to the end of the line (received a newline
+        // character) and the line is blank, the http request has ended,
+        // so you can send a reply
+        if (c == '\n' && currentLineIsBlank) {
+          // send a standard http response header
+          client.println("HTTP/1.1 200 OK");
+          client.println("Content-Type: text/html");
+          client.println("Connection: close");  //the connection will be closed after completion of the response
+          client.println("Refresh: 10");  //   refresh the page automatically every 5 sec
+          client.println();
+
+          client.println("<!DOCTYPE HTML>");
+          client.println("<html>");
+
+          client.println("<head>");
+          client.println("</head>");
+          client.println("<body>");
+
+         
+          float humid=dht.readHumidity();
+          float temperature=dht.readTemperature();  
+
+         
+          if(isnan(humid) || isnan(temperature))
+          {
+             client.println("Error!");
+             client.println("<br />");
+              return;
+          }  
+   
+        
+          // float hic = dht.computeHeatIndex(t, h, false);
+
+          
+          humidList[0] = humidList[1];
+          humidList[1] = humidList[2];
+          humidList[2] = humidList[3];
+          humidList[3] = humidList[4];
+          humidList[4] = humidList[5];
+          humidList[5] = humidList[6];
+         
+          humidList[6] = humid;
+
+
+          temperatureList[0] = temperatureList[1];
+          temperatureList[1] = temperatureList[2];
+          temperatureList[2] = temperatureList[3];
+          temperatureList[3] = temperatureList[4];
+          temperatureList[4] = temperatureList[5];
+          temperatureList[5] = temperatureList[6];
+
+          temperatureList[6] = temperature;
+          
+
+          spendTime[0] = spendTime[1];
+          spendTime[1] = spendTime[2];
+          spendTime[2] = spendTime[3];
+          spendTime[3] = spendTime[4];
+          spendTime[4] = spendTime[5];
+          spendTime[5] = spendTime[6];
+
+          
+          spendTime[6] = spendTime[6] + 5;
+
+
+          client.println("<!DOCTYPE HTML>");
+          client.println("<html>");
+          client.println("  <head>");
+          client.println("    <script type=\"text/javascript\" src=\"https://www.gstatic.com/charts/loader.js\"></script>");
+          client.println("    <script type=\"text/javascript\">");
+          client.println("        google.charts.load('current', {'packages':['corechart']});");
+          client.println("        google.charts.setOnLoadCallback(drawChart);");
+          client.println("        function drawChart() {");
+          client.println("          var data = google.visualization.arrayToDataTable([");
+          client.println("            ['seconds', 'humidity', 'temperature'],");
+
+
+          client.print("            ['");
+          client.print(spendTime[0]);
+          client.print("',  ");
+          client.print(humidList[0]);
+          client.print(",      ");
+          client.print(temperatureList[0]);
+          client.print("],\n");
+
+         
+          client.print("            ['");
+          client.print(spendTime[1]);
+          client.print("',  ");
+          client.print(humidList[1]);
+          client.print(",      ");
+          client.print(temperatureList[1]);
+          client.print("],\n");
+
+         
+          client.print("            ['");
+          client.print(spendTime[2]);
+          client.print("',  ");
+          client.print(humidList[2]);
+          client.print(",      ");
+          client.print(temperatureList[2]);
+          client.print("],\n");
+
+          client.print("            ['");
+          client.print(spendTime[3]);
+          client.print("',  ");
+          client.print(humidList[3]);
+          client.print(",      ");
+          client.print(temperatureList[3]);
+          client.print("],\n");
+
+          client.print("            ['");
+          client.print(spendTime[4]);
+          client.print("',  ");
+          client.print(humidList[4]);
+          client.print(",      ");
+          client.print(temperatureList[4]);
+          client.print("],\n");
+
+          
+          client.print("            ['");
+          client.print(spendTime[5]);
+          client.print("',  ");
+          client.print(humidList[5]);
+          client.print(",      ");
+          client.print(temperatureList[5]);
+          client.print("],\n");
+
+          
+          client.print("            ['");
+          client.print(spendTime[6]);
+          client.print("',  ");
+          client.print(humidList[6]);
+          client.print(",      ");
+          client.print(temperatureList[6]);
+          client.print("],\n");
+
+          client.println("          ]); ");
+          
+          // client.println("          var options = {");
+          // client.println("            title: 'Temperature and Humidity',");
+          // client.println("            curveType: 'function',");
+          // client.println("            legend: { position: 'bottom' }");
+          // client.println("          }; ");
+
+           client.println("   let options = {");
+             client.println("    title: 'Temperature and Humidity Monitoring',");
+             client.println("    hAxis: {");
+             client.println("        title: 'Time (sec)',");
+             client.println("    },");
+             client.println("    vAxis: {");
+             client.println("        title: 'Temperature(\xB0 C) and Humidity(%) ',");
+             client.println("    }");
+           client.println("  };");
+
+          client.println("          var chart = new google.visualization.LineChart(document.getElementById('curve_chart'));");
+          client.println("          chart.draw(data, options);");
+          client.println("        }");
+          client.println("    </script>");
+          client.println("    ");
+          client.println("  </head>");
+          client.println("  <body>");
+          client.println("    <div id=\"curve_chart\" style=\"width: 900px; height: 500px\"></div>");
+          client.println("  </body>");
+          client.println("</html>");
+
+          break;
+        }
+        if (c == '\n') {
+          // you're starting a new line
+          currentLineIsBlank = true;
+        } 
+        else if (c != '\r') {
+          // you've gotten a character on the current line
+          currentLineIsBlank = false;
+        }
+      }
+    }
+    delay(1);
+    client.stop();
+  }
+}
+
